@@ -1,4 +1,9 @@
 from colorama import Fore
+from triangulate import get_coordinates
+from telethon.sync import TelegramClient
+from telethon.errors import SessionPasswordNeededError
+from config import getconfig
+import asyncio
 import pyfiglet
 import re
 import csv
@@ -61,7 +66,7 @@ def cord_fromuser():
         raise ValueError("Invalid format")
         return None
     
-    return (cod[0], cod[1])
+    return (float(cod[0]), float(cod[1]))
 
 
 def ui():
@@ -120,7 +125,31 @@ def ui():
     return coordinates
 
 
-if __name__ == "__main__":
+async def main():
+    # create client session
+    print('[+] Creating Telegram client session')
+    config = getconfig()
+    client = TelegramClient('session', config['api_id'], config['api_hash'])
+    await client.start(config['phone'])
+    if not client.is_user_authorized():
+        client.send_code_request(config['phone'])
+        try:
+            client.sign_in(config['phone'], input('Enter the code: '))
+        except SessionPasswordNeededError: # 2FA auth
+            client.sign_in(phone=config['phone'], password=input('Enter 2FA password: '))
+        except Exception as e:
+            print('[-] ' + e)
+            exit(0)
+    print('[+] Client session created')
     cordinates = ui()
+
+    # get users from each coordinate
     for cord in cordinates:
-        print(cord)
+        # get cordinates to the north, east and south
+        cords = get_coordinates(cord)
+
+        # get users from each coordinate
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
