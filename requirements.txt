@@ -1,0 +1,5 @@
+colorama
+pyfiglet
+geopy
+telethon
+asyncio

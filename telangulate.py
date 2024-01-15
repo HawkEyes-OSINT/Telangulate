@@ -3,6 +3,7 @@ from triangulate import get_coordinates
 from telethon.sync import TelegramClient
 from telethon.errors import SessionPasswordNeededError
 from config import getconfig
+from telegram import get_users
 import asyncio
 import pyfiglet
 import re
@@ -146,10 +147,18 @@ async def main():
     # get users from each coordinate
     for cord in cordinates:
         # get cordinates to the north, east and south
-        cords = get_coordinates(cord)
+        print(f"[+] Getting cordinates sorrounding {cord[0]}, {cord[1]}")
+        try:
+            cords = get_coordinates(cord)
+            print(f"[+] Cordinates: {cords}")
+        except Exception as e:
+            print(f"[-] Error getting sorrounding cordinates for {cord[0]}, {cord[1]}")
+            print(f"[-] {e}")
+            continue
 
         # get users from each coordinate
-
+        users_list = await get_users(client, cords)
+        print(users_list)
 
 if __name__ == "__main__":
     asyncio.run(main())
