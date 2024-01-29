@@ -3,3 +3,4 @@ pyfiglet
 geopy
 telethon
 asyncio
+tqdm

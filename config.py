@@ -41,9 +41,9 @@ def getconfig():
     with open("config.csv", "r") as f:
         lines = f.readlines()
         config = {
-                'api_id': lines[0].split(',')[1].strip(),
+                'api_id': int(lines[0].split(',')[1].strip()),
                 'api_hash': lines[1].split(',')[1].strip(),
-                'phone': lines[2].split(',')[1].strip()
+                'phone': int(lines[2].split(',')[1].strip())
                 }
 
     return config

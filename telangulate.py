@@ -1,10 +1,7 @@
 from colorama import Fore
 from triangulate import get_coordinates
-from telethon.sync import TelegramClient
-from telethon.errors import SessionPasswordNeededError
-from config import getconfig
-from telegram import get_users
-import asyncio
+from telegram import get_userdistances
+from triangulate import triangulate_pos
 import pyfiglet
 import re
 import csv
@@ -62,11 +59,10 @@ def cord_fromuser():
     cod = cod.replace(' ', '').split(',')
     if len(cod) != 2:
         raise ValueError("Invalid format")
-        return None
     if not pattern.match(cod[0]) or not pattern.match(cod[1]):
         raise ValueError("Invalid format")
-        return None
     
+    print(Fore.WHITE + "")
     return (float(cod[0]), float(cod[1]))
 
 
@@ -82,28 +78,14 @@ def ui():
 
     # get user input
     print(Fore.WHITE + "Please chose an option: ")
-    print(Fore.WHITE + "1. Find users from a list of locations")
-    print(Fore.WHITE + "2. Enter single location to search")
-    print(Fore.WHITE + "3. Exit")
+    print(Fore.WHITE + "1. Enter single location to search")
+    print(Fore.WHITE + "2. Exit")
 
     choice = input(Fore.WHITE + "Enter your choice: ")
 
-    # get coordinates from list in csv
-    if choice == "1":
-        try:
-            coordinates = cords_fromlist()
-        except ValueError as e:
-            print(Fore.RED + str(e))
-            return ui()
-        except FileNotFoundError:
-            print(Fore.RED + "File not found")
-            return ui()
-        except Exception as e:
-            print(Fore.RED + str(e))
-            exit(0)
 
     # get coordinates from user input
-    elif choice == "2":
+    if choice == "1":
         try:
             coordinates = [cord_fromuser()]
         except ValueError as e:
@@ -114,8 +96,9 @@ def ui():
             exit(0)
 
     # exit program
-    elif choice == "3":
+    elif choice == "2":
         print(Fore.GREEN + "Exiting program...")
+        print(Fore.WHITE + "")
         exit(0)
 
     # invalid input
@@ -126,39 +109,58 @@ def ui():
     return coordinates
 
 
-async def main():
-    # create client session
-    print('[+] Creating Telegram client session')
-    config = getconfig()
-    client = TelegramClient('session', config['api_id'], config['api_hash'])
-    await client.start(config['phone'])
-    if not client.is_user_authorized():
-        client.send_code_request(config['phone'])
-        try:
-            client.sign_in(config['phone'], input('Enter the code: '))
-        except SessionPasswordNeededError: # 2FA auth
-            client.sign_in(phone=config['phone'], password=input('Enter 2FA password: '))
-        except Exception as e:
-            print('[-] ' + e)
-            exit(0)
-    print('[+] Client session created')
-    cordinates = ui()
-
-    # get users from each coordinate
-    for cord in cordinates:
-        # get cordinates to the north, east and south
-        print(f"[+] Getting cordinates sorrounding {cord[0]}, {cord[1]}")
-        try:
-            cords = get_coordinates(cord)
-            print(f"[+] Cordinates: {cords}")
-        except Exception as e:
-            print(f"[-] Error getting sorrounding cordinates for {cord[0]}, {cord[1]}")
-            print(f"[-] {e}")
-            continue
+def main():
+    """
+    Main function for program execution
+    :return: None
+    """
+    while True:
+        cordinates = ui()
 
         # get users from each coordinate
-        users_list = await get_users(client, cords)
-        print(users_list)
+        for cord in cordinates:
+            # get cordinates to the north, east and south
+            print(f"[+] Getting cordinates sorrounding {cord[0]}, {cord[1]}")
+            try:
+                cords = get_coordinates(cord)
+                print(f"[+] Cordinates: {cords}")
+            except Exception as e:
+                print(f"[-] Error getting sorrounding cordinates for {cord[0]}, {cord[1]}")
+                print(f"[-] {e}")
+                continue
+
+            # get users from each coordinate
+            users_list = get_userdistances(cords)
+
+            # triangulate location
+            for user in users_list:
+                try:
+                    user['LOCATION'] = triangulate_pos(user['LOCATION'])
+                    print(f"[+] Triangulated location for: {user['FIRST NAME']}")
+                except Exception as e:
+                    print(f"[-] Error triangulating location for {user['FIRST NAME']}")
+                    print(f"[-] {e}")
+                    continue
+
+            # export to csv
+            with open('user_list.csv', 'w') as file:
+                fieldnames =(users_list[0].keys())
+                writer = csv.DictWriter(file, fieldnames=fieldnames)
+                writer.writeheader()
+                for user in users_list:
+                    writer.writerow(user)
+
+            print(Fore.GREEN + "[+] Exported resutlts to user_list.csv")
+            print(Fore.GREEN + "Please move file to desired location before running new point to avoid loss of data")
+
+
+        # give continuation istructions
+        continuation_instructions1 = "Telegram API allows moving declared location 10 meters for every second from previous query"
+        continuation_instructions2 = "To run another location, please wait the required time or change your account details in config.csv"
+
+        print(Fore.WHITE + continuation_instructions1)
+        print()
+        print(Fore.WHITE + continuation_instructions2)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
